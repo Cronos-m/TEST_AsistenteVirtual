@@ -1,12 +1,36 @@
-
-
 {
-  "empresa": "Mago Cronos",
-  "ciudades": "Bogotá",
-  "servicios": [
-    "Internet empresarial",
-    "Fibra óptica",
-    "Soporte técnico"
+  "empresa": "Empresa TEST",
+  "ciudades": [
+    "Bogotá"
   ],
+  "servicios": {
+    "Internet empresarial": [
+      "Plan básico",
+      "Plan avanzado",
+      "Plan premium"
+    ],
+
+    "Fibra óptica": [],
+
+    "Soporte técnico": [
+      "Soporte 24/7",
+      "Soporte en sitio",
+      "Soporte remoto"
+    ],
+
+    "Servicio al cliente": [
+      "Atención telefónica",
+      "Chat en línea",
+      "Correo electrónico"
+    ],
+
+    "Servicio de analistas": [
+      "Análisis de datos",
+      "Análisis de mercado",
+      "Análisis de competencia",
+      "Capacitaciones en análisis"
+    ]
+  },
+
   "contacto": "3057453415"
 }
