@@ -1,70 +1,82 @@
+import os
+import json
+import requests
+
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
-    MessageHandler,
     ContextTypes,
+    MessageHandler,
     filters
 )
 
-from dotenv import load_dotenv
-import os
-import requests
-
-# Cargar variables del .env
+# Cargar variables
 load_dotenv()
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Función que habla con Ollama
-def ask_ai(message):
+# Cargar conocimiento
+with open("knowledge.json", "r", encoding="utf-8") as file:
+    knowledge = json.load(file)
 
-    prompt = f"""
-    Responde como un asistente de atención al cliente.
-    Habla de forma natural y humana.
-    No hables como robot.
-    Sé amable y breve.
+SYSTEM_PROMPT = f"""
+Eres un asistente virtual profesional y humano.
 
-    Cliente:
-    {message}
-    """
+Información REAL de la empresa:
 
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "llama3.1:8b",
-            "prompt": prompt,
-            "stream": False
-        }
-    )
+{json.dumps(knowledge, indent=2, ensure_ascii=False)}
 
-    data = response.json()
+Reglas IMPORTANTES:
+- Nunca inventes información.
+- Usa únicamente la información proporcionada.
+- Si no sabes algo, dilo honestamente.
+- Responde de manera amable, humana y natural.
+"""
 
-    return data["response"]
-
-# Manejar mensajes de Telegram
-async def handle_message(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_message = update.message.text
 
-    ai_response = ask_ai(user_message)
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    await update.message.reply_text(ai_response)
+    data = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": user_message
+            }
+        ],
+        "temperature": 0.7
+    }
 
-# Crear aplicación Telegram
-app = ApplicationBuilder().token(TOKEN).build()
-
-# Escuchar mensajes
-app.add_handler(
-    MessageHandler(
-        filters.TEXT,
-        handle_message
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
+        json=data
     )
+
+    result = response.json()
+
+    reply = result["choices"][0]["message"]["content"]
+
+    await update.message.reply_text(reply)
+
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+app.add_handler(
+    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
 )
 
-print("Bot funcionando...")
+print("Bot funcionando con Groq...")
 
-# Iniciar bot
 app.run_polling()
