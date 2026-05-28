@@ -127,13 +127,25 @@ def home():
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
 
-    data = request.get_json(force=True)
+    try:
 
-    update = Update.de_json(data, application.bot)
+        data = request.get_json(force=True)
 
-    asyncio.run(application.process_update(update))
+        print("MENSAJE RECIBIDO:")
+        print(data)
 
-    return "ok"
+        update = Update.de_json(data, application.bot)
+
+        asyncio.run(application.process_update(update))
+
+        return "ok"
+
+    except Exception as error:
+
+        print("ERROR WEBHOOK:")
+        print(error)
+
+        return "error", 500
 
 # =========================
 # INICIALIZAR BOT
