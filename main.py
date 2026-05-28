@@ -3,37 +3,57 @@ import json
 import requests
 
 from dotenv import load_dotenv
-from telegram import Update
+from flask import Flask, request
+from telegram import Update, Bot
 from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
+    Application,
     MessageHandler,
+    ContextTypes,
     filters
 )
 
-# Cargar variables
+# =========================
+# CARGAR VARIABLES
+# =========================
+
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
 
-# Cargar conocimiento
+# =========================
+# CARGAR KNOWLEDGE
+# =========================
+
 with open("knowledge.json", "r", encoding="utf-8") as file:
     knowledge = json.load(file)
 
 SYSTEM_PROMPT = f"""
-Eres un asistente virtual profesional y humano.
+Eres un asistente virtual profesional, humano y amable.
 
 Información REAL de la empresa:
 
 {json.dumps(knowledge, indent=2, ensure_ascii=False)}
 
-Reglas IMPORTANTES:
+REGLAS IMPORTANTES:
 - Nunca inventes información.
 - Usa únicamente la información proporcionada.
 - Si no sabes algo, dilo honestamente.
-- Responde de manera amable, humana y natural.
+- Responde de forma natural y útil.
 """
+
+# =========================
+# TELEGRAM APP
+# =========================
+
+bot = Bot(token=TELEGRAM_TOKEN)
+
+application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+# =========================
+# RESPUESTA IA
+# =========================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -71,12 +91,51 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply)
 
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+# =========================
+# HANDLER
+# =========================
 
-app.add_handler(
+application.add_handler(
     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
 )
 
-print("Bot funcionando con Groq...")
+# =========================
+# FLASK WEBHOOK
+# =========================
 
-app.run_polling()
+app = Flask(__name__)
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot funcionando correctamente."
+
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+async def webhook():
+
+    data = request.get_json(force=True)
+
+    update = Update.de_json(data, bot)
+
+    await application.process_update(update)
+
+    return "ok"
+
+# =========================
+# INICIO
+# =========================
+
+if __name__ == "__main__":
+
+    import asyncio
+
+    async def startup():
+        await application.initialize()
+        await bot.set_webhook(
+            url=f"{RENDER_EXTERNAL_URL}/{TELEGRAM_TOKEN}"
+        )
+
+    asyncio.run(startup())
+
+    print("Bot funcionando con webhook + Groq")
+
+    app.run(host="0.0.0.0", port=10000)
