@@ -23,14 +23,20 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # =========================
-# KNOWLEDGE
+# CARGAR INFORMACIÓN
 # =========================
 
 with open("knowledge.json", "r", encoding="utf-8") as file:
     knowledge = json.load(file)
 
+# =========================
+# PROMPT DEL SISTEMA
+# =========================
+
 SYSTEM_PROMPT = f"""
-Eres un asistente virtual profesional, humano y amable.
+Eres un asesor humano, amable y profesional de una empresa llamada TU EMPRESA.
+
+Tu objetivo es ayudar clientes de manera natural y cercana.
 
 Información REAL de la empresa:
 
@@ -39,18 +45,20 @@ Información REAL de la empresa:
 REGLAS IMPORTANTES:
 - Nunca inventes información.
 - Usa únicamente la información proporcionada.
+- Sé natural y conversacional.
+- Sé breve y útil.
 - Si no sabes algo, dilo honestamente.
-- Responde de forma natural y útil.
+- Si te quedas sin información o el cliente pide hablar con alguien diferente a ti comunicalo al 3002660164
 """
 
 # =========================
-# TELEGRAM APP
+# TELEGRAM
 # =========================
 
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 # =========================
-# IA RESPONSE
+# RESPUESTA IA
 # =========================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,23 +82,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "content": user_message
             }
         ],
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": 300
     }
 
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers=headers,
-        json=data
-    )
+    try:
 
-    result = response.json()
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=data
+        )
 
-    reply = result["choices"][0]["message"]["content"]
+        result = response.json()
+
+        reply = result["choices"][0]["message"]["content"]
+
+    except Exception as error:
+
+        print(error)
+
+        reply = "Lo siento, ocurrió un problema procesando tu solicitud."
 
     await update.message.reply_text(reply)
 
 # =========================
-# HANDLER
+# HANDLER MENSAJES
 # =========================
 
 application.add_handler(
@@ -105,7 +122,7 @@ app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Bot funcionando"
+    return "Bot funcionando correctamente"
 
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
@@ -119,9 +136,9 @@ def webhook():
     return "ok"
 
 # =========================
-# STARTUP
+# INICIALIZAR BOT
 # =========================
 
 asyncio.run(application.initialize())
 
-print("Bot webhook funcionando")
+print("Bot webhook funcionando correctamente")
