@@ -1,10 +1,11 @@
 import os
 import json
+import asyncio
 import requests
 
 from dotenv import load_dotenv
 from flask import Flask, request
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import (
     Application,
     MessageHandler,
@@ -13,17 +14,16 @@ from telegram.ext import (
 )
 
 # =========================
-# CARGAR VARIABLES
+# VARIABLES
 # =========================
 
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
 
 # =========================
-# CARGAR KNOWLEDGE
+# KNOWLEDGE
 # =========================
 
 with open("knowledge.json", "r", encoding="utf-8") as file:
@@ -47,12 +47,10 @@ REGLAS IMPORTANTES:
 # TELEGRAM APP
 # =========================
 
-bot = Bot(token=TELEGRAM_TOKEN)
-
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 # =========================
-# RESPUESTA IA
+# IA RESPONSE
 # =========================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -100,42 +98,30 @@ application.add_handler(
 )
 
 # =========================
-# FLASK WEBHOOK
+# FLASK
 # =========================
 
 app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Bot funcionando correctamente."
+    return "Bot funcionando"
 
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
-async def webhook():
+def webhook():
 
     data = request.get_json(force=True)
 
-    update = Update.de_json(data, bot)
+    update = Update.de_json(data, application.bot)
 
-    await application.process_update(update)
+    asyncio.run(application.process_update(update))
 
     return "ok"
 
 # =========================
-# INICIO
+# STARTUP
 # =========================
 
-if __name__ == "__main__":
+asyncio.run(application.initialize())
 
-    import asyncio
-
-    async def startup():
-        await application.initialize()
-        await bot.set_webhook(
-            url=f"{RENDER_EXTERNAL_URL}/{TELEGRAM_TOKEN}"
-        )
-
-    asyncio.run(startup())
-
-    print("Bot funcionando con webhook + Groq")
-
-    app.run(host="0.0.0.0", port=10000)
+print("Bot webhook funcionando")
