@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import threading
 import requests
 
 from dotenv import load_dotenv
@@ -23,45 +24,42 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # =========================
-# CARGAR INFORMACIÓN
+# KNOWLEDGE
 # =========================
 
 with open("knowledge.json", "r", encoding="utf-8") as file:
     knowledge = json.load(file)
 
 # =========================
-# PROMPT DEL SISTEMA
+# PROMPT
 # =========================
 
 SYSTEM_PROMPT = f"""
 Eres Sandra, asesora virtual de {knowledge["empresa"]}.
 
-Tu forma de hablar es:
-- humana
+Tu personalidad:
 - amable
-- breve
-- natural
+- humana
+- cercana
 - profesional
+- breve
 
-INSTRUCCIONES IMPORTANTES:
+REGLAS:
 - Responde corto.
 - No hagas respuestas largas.
-- No uses listas enormes.
-- No expliques demasiado.
-- Habla como una asesora real por chat.
-- Nunca inventes información.
+- No inventes información.
 - Usa únicamente la información proporcionada.
+- Habla como una persona real por chat.
 
 INFORMACIÓN DE LA EMPRESA:
 
 {json.dumps(knowledge, indent=2, ensure_ascii=False)}
 
-SALUDO INICIAL:
-Si el usuario saluda, responde parecido a:
+SALUDO:
+Si el usuario saluda, responde algo parecido a:
 "Hola 😊 Hablas con Sandra de {knowledge["empresa"]}. ¿En qué puedo ayudarte?"
-
-Luego continúa normalmente la conversación.
 """
+
 # =========================
 # TELEGRAM
 # =========================
@@ -69,7 +67,7 @@ Luego continúa normalmente la conversación.
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 # =========================
-# RESPUESTA IA
+# IA RESPONSE
 # =========================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -93,8 +91,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "content": user_message
             }
         ],
-        "temperature": 0.7,
-        "max_tokens": 300
+        "temperature": 0.5,
+        "max_tokens": 150
     }
 
     try:
@@ -113,16 +111,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         print(error)
 
-        reply = "Lo siento, ocurrió un problema procesando tu solicitud."
+        reply = "Lo siento, ocurrió un problema."
 
     await update.message.reply_text(reply)
 
 # =========================
-# HANDLER MENSAJES
+# HANDLER
 # =========================
 
 application.add_handler(
     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+)
+
+# =========================
+# EVENT LOOP GLOBAL
+# =========================
+
+loop = asyncio.new_event_loop()
+
+def start_loop():
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+threading.Thread(target=start_loop, daemon=True).start()
+
+asyncio.run_coroutine_threadsafe(
+    application.initialize(),
+    loop
 )
 
 # =========================
@@ -142,29 +157,20 @@ def webhook():
 
         data = request.get_json(force=True)
 
-        print("MENSAJE RECIBIDO:")
-        print(data)
-
         update = Update.de_json(data, application.bot)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(application.process_update(update))
-        loop.close()
+        future = asyncio.run_coroutine_threadsafe(
+            application.process_update(update),
+            loop
+        )
+
+        future.result()
 
         return "ok"
 
     except Exception as error:
 
-        print("ERROR WEBHOOK:")
+        print("ERROR:")
         print(error)
 
         return "error", 500
-
-# =========================
-# INICIALIZAR BOT
-# =========================
-
-asyncio.run(application.initialize())
-
-print("Bot webhook funcionando correctamente")
