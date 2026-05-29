@@ -1,11 +1,9 @@
 import os
 import json
-import asyncio
-import threading
 import requests
 
 from dotenv import load_dotenv
-from flask import Flask, request
+from fastapi import FastAPI, Request
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -49,25 +47,23 @@ REGLAS:
 - No hagas respuestas largas.
 - No inventes información.
 - Usa únicamente la información proporcionada.
-- Habla como una persona real por chat.
 
-INFORMACIÓN DE LA EMPRESA:
+INFORMACIÓN EMPRESA:
 
 {json.dumps(knowledge, indent=2, ensure_ascii=False)}
 
-SALUDO:
-Si el usuario saluda, responde algo parecido a:
+Si saludan, responde:
 "Hola 😊 Hablas con Sandra de {knowledge["empresa"]}. ¿En qué puedo ayudarte?"
 """
 
 # =========================
-# TELEGRAM
+# TELEGRAM APP
 # =========================
 
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 # =========================
-# IA RESPONSE
+# RESPUESTA IA
 # =========================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,53 +120,28 @@ application.add_handler(
 )
 
 # =========================
-# EVENT LOOP GLOBAL
+# FASTAPI
 # =========================
 
-loop = asyncio.new_event_loop()
+app = FastAPI()
 
-def start_loop():
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
+@app.on_event("startup")
+async def startup():
 
-threading.Thread(target=start_loop, daemon=True).start()
+    await application.initialize()
 
-asyncio.run_coroutine_threadsafe(
-    application.initialize(),
-    loop
-)
+@app.get("/")
+async def root():
 
-# =========================
-# FLASK
-# =========================
+    return {"status": "ok"}
 
-app = Flask(__name__)
+@app.post(f"/{TELEGRAM_TOKEN}")
+async def webhook(request: Request):
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Bot funcionando correctamente"
+    data = await request.json()
 
-@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
-def webhook():
+    update = Update.de_json(data, application.bot)
 
-    try:
+    await application.process_update(update)
 
-        data = request.get_json(force=True)
-
-        update = Update.de_json(data, application.bot)
-
-        future = asyncio.run_coroutine_threadsafe(
-            application.process_update(update),
-            loop
-        )
-
-        future.result()
-
-        return "ok"
-
-    except Exception as error:
-
-        print("ERROR:")
-        print(error)
-
-        return "error", 500
+    return {"ok": True}
